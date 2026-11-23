@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tw93/Pake/main/schema/pake.schema.json",
+  "name": "Zen",
+  "title": "Zen",
+  "identifier": "com.knight.zen",
+  "icon": "./zen/zen-icon-512.png",
+  "width": 1600,
+  "height": 1000,
+  "minWidth": 1024,
+  "minHeight": 720,
+  "hideTitleBar": true,
+  "hideWindowDecorations": true,
+  "darkMode": true,
+  "ignoreCertificateErrors": true,
+  "disabledWebShortcuts": true,
+  "restoreLastUrl": false,
+  "appVersion": "1.0.0",
+  "installerLanguage": "zh-CN"
+}

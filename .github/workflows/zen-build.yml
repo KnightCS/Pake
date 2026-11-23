@@ -1,0 +1,102 @@
+name: Build Zen App
+
+# Fork-only build of one private app: the "Zen" LAN control panel described by
+# zen/app.json (a declarative --config manifest). The address of that panel is
+# in the ZEN_URL repository secret, so it never enters this public repository,
+# and the manifest carries no "url" field at all.
+#
+# This is not a public surface: pake-cli.yaml and single-app.yaml are untouched.
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.26.2"
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Target machine"
+        required: true
+        default: "macos-latest"
+        type: choice
+        options:
+          - "windows-latest"
+          - "macos-latest"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Zen for ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform }}
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js Environment
+        uses: ./.github/actions/setup-env
+        with:
+          mode: build
+
+      - name: Build CLI
+        run: pnpm run cli:build
+
+      - name: Build App (macOS)
+        if: runner.os == 'macOS'
+        # A fork's first build compiles every Tauri dependency; later ones
+        # reuse the shared rust-cache entry.
+        timeout-minutes: 45
+        shell: bash
+        env:
+          ZEN_URL: ${{ secrets.ZEN_URL }}
+        run: |
+          # An unset secret expands to an empty string, and the CLI would then
+          # read the config file and report a missing URL; name the cause here.
+          if [ -z "$ZEN_URL" ]; then
+            echo "::error::Repository secret ZEN_URL is not set. Run: gh secret set ZEN_URL"
+            exit 1
+          fi
+
+          node dist/cli.js "$ZEN_URL" --config ./zen/app.json --json
+
+      - name: Build App (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 45
+        shell: pwsh
+        env:
+          ZEN_URL: ${{ secrets.ZEN_URL }}
+        run: |
+          # Empty environment variables are unset on Windows, so test for null too.
+          if ([string]::IsNullOrEmpty($env:ZEN_URL)) {
+            Write-Error "Repository secret ZEN_URL is not set. Run: gh secret set ZEN_URL"
+            exit 1
+          }
+
+          node dist/cli.js "$env:ZEN_URL" --config ./zen/app.json --json
+
+          # The MSI build rewrites the lock file; keep the checkout clean.
+          git checkout -- src-tauri/Cargo.lock
+
+      # The CLI writes the installer into the working directory as
+      # <name>.<format>; match by extension so a name change cannot break this.
+      - name: Upload DMG (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Zen-macOS
+          path: "*.dmg"
+          retention-days: 3
+
+      - name: Upload MSI (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Zen-Windows
+          path: "*.msi"
+          retention-days: 3
