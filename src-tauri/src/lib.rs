@@ -449,6 +449,11 @@ pub fn run_app() {
             if let Some(capability) = pake_config.remote_capability()? {
                 app.add_capability(capability)?;
             }
+            // No Dock icon: the app is reached through its menu bar icon.
+            #[cfg(target_os = "macos")]
+            if pake_config.hides_dock_icon() {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
             app.manage(crate::util::LastDownload::default());
             app.manage(MultiWindowState::new(
                 pake_config.clone(),
@@ -481,6 +486,14 @@ pub fn run_app() {
             // Before the first window, which reads the theme as it is built.
             #[cfg(target_os = "linux")]
             app::color_scheme::keep_missing_dark_theme_dark();
+
+            // Where the settings of the app's extensions are kept for the builder.
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if pake_config.runtime_extensions.is_some() {
+                if let Ok(directory) = app.path().app_local_data_dir() {
+                    app::extensions::settings::set_store(app.app_handle(), directory);
+                }
+            }
 
             let window = set_window(app.app_handle(), &pake_config, &tauri_config)?;
 
